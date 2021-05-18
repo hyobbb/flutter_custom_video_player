@@ -3,8 +3,8 @@ import 'package:rxdart/rxdart.dart';
 
 
 class PlayerController {
-  final _playSignal = BehaviorSubject<bool>();
-  final _volume = BehaviorSubject<double>();
+  final _playSignal = StreamController<bool>.broadcast();
+  final _volume = StreamController<double>.broadcast();
   Stream<bool> get playSignal => _playSignal.stream;
   Stream<double> get volume => _volume.stream;
 
