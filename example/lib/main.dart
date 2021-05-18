@@ -25,23 +25,6 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  final videos = [
-    'https://flutter.github.io/assets-for-api-docs/assets/videos/bee.mp4',
-    'https://flutter.github.io/assets-for-api-docs/assets/videos/butterfly.mp4',
-    'https://flutter.github.io/assets-for-api-docs/assets/videos/bee.mp4',
-    'https://flutter.github.io/assets-for-api-docs/assets/videos/butterfly.mp4',
-  ];
-
-  _play() async {
-    List<VideoSource> sources = List.generate(
-      videos.length,
-      (index) => VideoSource(
-        type: SourceType.network,
-        url: videos[index],
-      ),
-    );
-    Navigator.push(context, MaterialPageRoute(builder: (_) => Play(sources)));
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -60,7 +43,12 @@ class _MyHomePageState extends State<MyHomePage> {
         ),
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: _play,
+        onPressed: () => Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => Play(),
+          ),
+        ),
         child: Icon(Icons.play_arrow),
       ), // This trailing comma makes auto-formatting nicer for build methods.
     );

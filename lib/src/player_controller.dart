@@ -1,9 +1,10 @@
 import 'dart:async';
+import 'package:rxdart/rxdart.dart';
 
 
 class PlayerController {
-  final StreamController<bool> _playSignal = StreamController();
-  final StreamController<double> _volume = StreamController();
+  final _playSignal = BehaviorSubject<bool>();
+  final _volume = BehaviorSubject<double>();
   Stream<bool> get playSignal => _playSignal.stream;
   Stream<double> get volume => _volume.stream;
 

@@ -11,6 +11,8 @@ class CustomVideoPlayer extends StatefulWidget {
   final int startIndex;
   final bool looping;
   final ValueChanged<int>? onIndexChanged;
+  final VoidCallback? onDone;
+  final VoidCallback? onPrev;
   final double? width;
   final double? height;
   final bool showProgressBar;
@@ -23,6 +25,8 @@ class CustomVideoPlayer extends StatefulWidget {
     this.startIndex = 0,
     this.looping = false,
     this.onIndexChanged,
+    this.onDone,
+    this.onPrev,
     this.width,
     this.height,
     this.showProgressBar = true,
@@ -99,7 +103,11 @@ class _CustomVideoPlayerState extends State<CustomVideoPlayer> {
           }
         });
       } else {
-        Navigator.pop(context);
+        if(widget.onDone!=null) {
+          widget.onDone!();
+        } else {
+          Navigator.pop(context);
+        }
       }
     } else {
       setState(() {
@@ -113,8 +121,19 @@ class _CustomVideoPlayerState extends State<CustomVideoPlayer> {
 
   _onPrev() {
     if (currentIndex == 0) {
-      if (!widget.looping) {
-        Navigator.pop(context);
+      if (widget.looping) {
+        setState(() {
+          currentIndex = widget.videos.length - 1;
+          if (widget.onIndexChanged != null) {
+            widget.onIndexChanged!(currentIndex);
+          }
+        });
+      } else {
+        if(widget.onPrev!=null) {
+          widget.onPrev!();
+        } else {
+          Navigator.pop(context);
+        }
       }
     } else {
       setState(() {

@@ -34,55 +34,43 @@ class Player extends StatefulWidget {
 }
 
 class _PlayerState extends State<Player> with TickerProviderStateMixin {
-  bool loading = true;
   VideoPlayerController? videoPlayerController;
   AnimationController? animationController;
   StreamSubscription? playSubscription;
   StreamSubscription? volumeSubscription;
 
-  double expectedHeight = 0.0;
+  double _expectedHeight = 0.0;
+  double _volume = 1.0;
 
-  @override
-  void initState() {
-    _initialize();
-    super.initState();
-  }
-
-  _initialize() {
-    if (this.mounted) {
-      setState(() {
-        loading = true;
-      });
-    }
-
-    _setController().then((value) {
-      videoPlayerController = value;
-
-      videoPlayerController?.initialize().then((value) {
-        animationController = AnimationController(
-            vsync: this, duration: videoPlayerController?.value.duration);
-        videoPlayerController?.addListener(_videoStatusListener);
-        playSubscription = widget.controller.playSignal.listen((play) {
-          if (play) {
-            videoPlayerController?.play();
-            animationController?.forward();
-          } else {
-            videoPlayerController?.pause();
-            animationController?.stop();
-          }
-        });
-        volumeSubscription = widget.controller.volume.listen((volume) {
-          videoPlayerController?.setVolume(volume);
-        });
-        if (this.mounted) {
-          animationController?.forward();
-          videoPlayerController?.play();
-          setState(() {
-            loading = false;
-          });
-        }
-      });
+  _initialize() async {
+    videoPlayerController = await _setController();
+    animationController = AnimationController(
+        vsync: this, duration: videoPlayerController?.value.duration);
+    videoPlayerController?.addListener(_videoStatusListener);
+    playSubscription = widget.controller.playSignal.listen((shouldPlay) {
+      if (shouldPlay) {
+        print('#############play####################');
+        print(videoPlayerController.hashCode);
+        print('#################################');
+        videoPlayerController?.play();
+        animationController?.forward();
+      } else {
+        print('#############stop####################');
+        print(videoPlayerController.hashCode);
+        print('#################################');
+        videoPlayerController?.pause();
+        animationController?.stop();
+      }
     });
+    volumeSubscription = widget.controller.volume.listen((volume) {
+      videoPlayerController?.setVolume(volume);
+      _volume = volume;
+    });
+
+    if (this.mounted) {
+      animationController?.forward();
+      videoPlayerController?.play();
+    }
   }
 
   _videoStatusListener() {
@@ -111,33 +99,38 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
   Future<VideoPlayerController> _setController() async {
     final source = widget.videos[widget.index];
     if (source.type == SourceType.file) {
-      return VideoPlayerController.file(File(source.url));
+      final controller = VideoPlayerController.file(File(source.url))
+        ..setVolume(_volume);
+      await controller.initialize();
+      return controller;
     } else {
       final info = await DefaultCacheManager().getFileFromCache(source.url);
       if (info == null) {
-        return VideoPlayerController.network(source.url);
+        final controller = VideoPlayerController.network(source.url)
+          ..setVolume(_volume);
+        await controller.initialize();
+        return controller;
       } else {
-        return VideoPlayerController.file(info.file);
+        final controller = VideoPlayerController.file(info.file)
+          ..setVolume(_volume);
+        await controller.initialize();
+        return controller;
       }
     }
   }
 
   @override
   void didUpdateWidget(covariant Player oldWidget) {
+    animationController?.dispose();
+    videoPlayerController?.dispose();
     playSubscription?.cancel();
     volumeSubscription?.cancel();
+
     playSubscription = null;
     volumeSubscription = null;
-
-    final oldVideo = videoPlayerController;
-    final oldAnimation = animationController;
-
     videoPlayerController = null;
     animationController = null;
 
-    oldVideo?.dispose();
-    oldAnimation?.dispose();
-    _initialize();
     super.didUpdateWidget(oldWidget);
   }
 
@@ -156,78 +149,90 @@ class _PlayerState extends State<Player> with TickerProviderStateMixin {
       builder: (context, constraints) {
         final maxHeight = constraints.maxHeight;
         final maxWidth = constraints.maxWidth;
-        if(videoPlayerController!=null) {
-          expectedHeight = maxWidth / videoPlayerController!.value.aspectRatio;
-        }
-        return Container(
-          width: maxHeight,
-          height: maxWidth,
-          child: Stack(
-            children: [
-              if (loading && widget.videos[widget.index].thumbUrl != null)
-                CachedNetworkImage(
-                  imageUrl: widget.videos[widget.index].thumbUrl!,
-                  imageBuilder: (context, imageProvider) => Container(
-                    decoration: BoxDecoration(
-                      image: DecorationImage(
-                        image: imageProvider,
-                        fit: BoxFit.cover,
+        return FutureBuilder(
+          future: _initialize(),
+          builder: (context, snapshot) {
+            if (videoPlayerController != null) {
+              _expectedHeight =
+                  maxWidth / videoPlayerController!.value.aspectRatio;
+            }
+            return Container(
+              width: maxHeight,
+              height: maxWidth,
+              child: Stack(
+                children: [
+                  Center(
+                    child: CircularProgressIndicator(),
+                  ),
+                  if (widget.videos[widget.index].thumbUrl != null)
+                    CachedNetworkImage(
+                      imageUrl: widget.videos[widget.index].thumbUrl!,
+                      imageBuilder: (context, imageProvider) => Container(
+                        decoration: BoxDecoration(
+                          image: DecorationImage(
+                            image: imageProvider,
+                            fit: BoxFit.cover,
+                          ),
+                        ),
                       ),
                     ),
-                  ),
-                ),
-              Center(
-                child: CircularProgressIndicator(),
-              ),
-              if (!loading)
-                ClipRect(
-                  child: OverflowBox(
-                    maxWidth: double.infinity,
-                    maxHeight: double.infinity,
-                    child: SizedBox(
-                        width: (maxHeight > expectedHeight)
-                            ? maxHeight * videoPlayerController!.value.aspectRatio
-                            : maxWidth,
-                        height: max(maxHeight , expectedHeight),
-                        child: VideoPlayer(videoPlayerController!)),
-                  ),
-                ),
-              if (!loading)
-                Align(
-                  alignment: Alignment.bottomCenter,
-                  child: Row(
-                    children: List.generate(
-                      widget.videos.length,
-                      (index) {
-                        final width = constraints.maxWidth / widget.videos.length;
-                        final showBorder = index != widget.videos.length -1;
-                        if (index < widget.index) {
-                          return StaticIndicator(
-                            width: width,
-                            color: widget.progressBarActiveColor,
-                            border: showBorder,
-                          );
-                        } else if (index == widget.index) {
-                          return DynamicIndicator(
-                            width: width,
-                            controller: animationController!,
-                            border: showBorder,
-                            backgroundColor: widget.progressBarInactiveColor,
-                            activeColor: widget.progressBarActiveColor,
-                          );
-                        } else {
-                          return StaticIndicator(
-                            width: width,
-                            color: widget.progressBarInactiveColor,
-                            border: showBorder,
-                          );
-                        }
-                      },
+                  if (snapshot.connectionState == ConnectionState.done &&
+                      videoPlayerController != null)
+                    ClipRect(
+                      child: OverflowBox(
+                        maxWidth: double.infinity,
+                        maxHeight: double.infinity,
+                        child: SizedBox(
+                            width: (maxHeight > _expectedHeight)
+                                ? maxHeight *
+                                    videoPlayerController!.value.aspectRatio
+                                : maxWidth,
+                            height: max(maxHeight, _expectedHeight),
+                            child: VideoPlayer(videoPlayerController!)),
+                      ),
                     ),
-                  ),
-                ),
-            ],
-          ),
+                  if (snapshot.connectionState == ConnectionState.done &&
+                      animationController != null)
+                    Align(
+                      alignment: Alignment.bottomCenter,
+                      child: Row(
+                        children: List.generate(
+                          widget.videos.length,
+                          (index) {
+                            final width =
+                                constraints.maxWidth / widget.videos.length;
+                            final showBorder =
+                                index != widget.videos.length - 1;
+                            if (index < widget.index) {
+                              return StaticIndicator(
+                                width: width,
+                                color: widget.progressBarActiveColor,
+                                border: showBorder,
+                              );
+                            } else if (index == widget.index) {
+                              return DynamicIndicator(
+                                width: width,
+                                controller: animationController!,
+                                border: showBorder,
+                                backgroundColor:
+                                    widget.progressBarInactiveColor,
+                                activeColor: widget.progressBarActiveColor,
+                              );
+                            } else {
+                              return StaticIndicator(
+                                width: width,
+                                color: widget.progressBarInactiveColor,
+                                border: showBorder,
+                              );
+                            }
+                          },
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            );
+          },
         );
       },
     );
